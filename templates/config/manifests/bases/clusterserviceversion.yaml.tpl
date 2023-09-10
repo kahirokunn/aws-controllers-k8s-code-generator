@@ -17,7 +17,7 @@ metadata:
 spec:
   apiservicedefinitions: {}
   customresourcedefinitions:
-    owned: 
+    owned:
     {{- range .CRDs}}
     - kind: {{ .Kind}}
       name: {{ ToLower .Plural }}.{{$.APIGroup}}

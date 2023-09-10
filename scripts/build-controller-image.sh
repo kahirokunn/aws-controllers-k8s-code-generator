@@ -11,6 +11,11 @@ DOCKERFILE=${DOCKERFILE:-"$DOCKERFILE_PATH"}
 LOCAL_MODULES=${LOCAL_MODULES:-"false"}
 BUILD_DATE=$(date +%Y-%m-%dT%H:%M)
 QUIET=${QUIET:-"false"}
+CONTAINER_OS=${CONTAINER_OS:-"$(go env GOOS)"}
+
+if [ "$CONTAINER_OS" == "darwin" ]; then
+  CONTAINER_OS="linux"
+fi
 
 GOARCH=${GOARCH:-"$(go env GOARCH)"}
 
@@ -33,7 +38,7 @@ USAGE="
 Usage:
   $(basename "$0") <aws_service>
 
-Builds the Docker image for an ACK service controller. 
+Builds the Docker image for an ACK service controller.
 
 Example: $(basename "$0") ecr
 
@@ -75,17 +80,12 @@ pushd "$SERVICE_CONTROLLER_SOURCE_PATH" 1>/dev/null
   SERVICE_CONTROLLER_GIT_COMMIT=$(git rev-parse HEAD)
 popd 1>/dev/null
 
-DEFAULT_AWS_SERVICE_DOCKER_IMG="aws-controllers-k8s:$AWS_SERVICE-$SERVICE_CONTROLLER_GIT_VERSION"
+DEFAULT_AWS_SERVICE_DOCKER_IMG="quay.io/kahirokunn:$AWS_SERVICE-$SERVICE_CONTROLLER_GIT_VERSION"
 AWS_SERVICE_DOCKER_IMG=${AWS_SERVICE_DOCKER_IMG:-"$DEFAULT_AWS_SERVICE_DOCKER_IMG"}
 
 if [[ $QUIET = "false" ]]; then
     echo "building '$AWS_SERVICE' controller docker image with tag: ${AWS_SERVICE_DOCKER_IMG}"
     echo " git commit: $SERVICE_CONTROLLER_GIT_COMMIT"
-fi
-
-if ! is_public_ecr_logged_in; then
-  # Log into ECR public to access base images
-  aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
 fi
 
 pushd "$ROOT_DIR" 1>/dev/null
@@ -100,16 +100,24 @@ if [[ "$LOCAL_MODULES" = "true" ]]; then
   DOCKERFILE="${ROOT_DIR}"/Dockerfile.local
 fi
 
-if ! docker build \
+docker buildx create --use
+
+if ! docker buildx build \
   --quiet="${QUIET}" \
   -t "${AWS_SERVICE_DOCKER_IMG}" \
   -f "${DOCKERFILE}" \
+<<<<<<< Updated upstream
+  --platform linux/amd64,linux/arm64,${CONTAINER_OS}/${GOARCH} \
+  --output=type=image \
+=======
+  --platform linux/amd64,linux/arm64,linux/ppc64le,linux/s390x,${CONTAINER_OS}/${GOARCH} \
+  --output=type=image,push=true \
+>>>>>>> Stashed changes
   --build-arg service_alias="${AWS_SERVICE}" \
   --build-arg service_controller_git_version="$SERVICE_CONTROLLER_GIT_VERSION" \
   --build-arg service_controller_git_commit="$SERVICE_CONTROLLER_GIT_COMMIT" \
   --build-arg build_date="$BUILD_DATE" \
   --build-arg golang_version="${GOLANG_VERSION}" \
-  --build-arg go_arch="$GOARCH" \
   "${DOCKER_BUILD_CONTEXT}"; then
   exit 2
 fi
